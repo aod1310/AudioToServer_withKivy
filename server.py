@@ -77,7 +77,7 @@ class AndroidRecorder:
         if not os.path.exists(folder):  ## check for saving wave files
             os.mkdir(folder)
         try:
-            filename = str(self.name) + '_recording' + folder + '.wav'
+            filename = str(self.name) + '_recording' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + '.wav'
             wf = wave.open(folder+ '/' + filename, 'wb')
             wf.setnchannels(1)
             wf.setframerate(16000)
@@ -94,7 +94,7 @@ class AndroidRecorder:
 
             try:
                 temp = data.decode().strip()
-                print(temp)
+                #print(temp)
                 if temp == 'quit':
                     self.conn.close()
                     self.live = False
