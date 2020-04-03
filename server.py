@@ -35,14 +35,25 @@ class AndroidRecorderManager:
             self.syncs = [recorder['recorder'].RECORD_START for recorder in self.recorders.values()]
             if False not in self.syncs:
                 self.update_syncs(True)
-                #print('sync!')
+                self.set_foldername()
+                print('sync!')
             else:
                 self.update_syncs(False)
-                #print('not sync!')
+                print('not sync!')
 
     def update_syncs(self, flag):
         for recorder in self.recorders.values():
             recorder['recorder'].update_sync(flag)
+
+    def set_foldername(self):
+        if not os.path.exists('./waves'):
+            os.mkdir('./waves')
+        cur_time = str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())))
+        folder = './waves/' + cur_time
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        for recorder in self.recorders.values():
+            recorder['recorder'].get_foldername(folder)
 
 
 class AndroidRecorder:
@@ -55,13 +66,28 @@ class AndroidRecorder:
         self.name = name
         print(self.conn)
         self.receiver = threading.Thread(target=self.recv_data, args=())
+        self.foldername = None
+        self.manager = None
 
+    def indicate_manager(self, manager):
+        self.manager = manager
+        print('my manager : ', self.manager)
+        return self.manager
+
+    def get_foldername(self, path):
+        self.foldername = path
+        return path
+
+    # sync가 끊어지는 순간 둘다 저장하게 해야함.
     def set_recvflag(self, flag):
         # bool types --> length of received datas are different.. True:1, False:0 and mixed another datas.
+        print('recv_flag')
         if flag =='True':
             self.RECORD_START = True
         else :
             self.RECORD_START = False
+
+        self.manager.check_sync()
 
         if len(self.frames) != 0:
             self.save_audio()
@@ -72,13 +98,15 @@ class AndroidRecorder:
             self.frames.append(data)
         # print(data)
 
+    # Sync가 True될 때의 시간을 체크해서 폴더를 생성해야됨.
     def save_audio(self):
-        folder = './waves/' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())))
-        if not os.path.exists(folder):  ## check for saving wave files
-            os.mkdir(folder)
+        #folder = './waves/' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())))
+        #if not os.path.exists(folder):  ## check for saving wave files
+        #    os.mkdir(folder)
         try:
-            filename = str(self.name) + '_recording' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + '.wav'
-            wf = wave.open(folder+ '/' + filename, 'wb')
+            #filename = str(self.name) + '_recording' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + '.wav'
+            filename = str(self.name) + '_recording.wav'
+            wf = wave.open(self.foldername + '/' + filename, 'wb')
             wf.setnchannels(1)
             wf.setframerate(16000)
             wf.setsampwidth(2)
@@ -105,7 +133,8 @@ class AndroidRecorder:
                     lock.release()
                     continue
             except Exception as e:
-                print(e)
+                #print(e)
+                pass
             if self.RECORD_START:
                 self.store_signal(data)
             else:
@@ -128,9 +157,10 @@ class AndroidTCPHandler(socketserver.BaseRequestHandler):
             self.request.send('connect successfully'.encode())
             self.recorder = AndroidRecorder(self.request, self.manager.n_recorders)
             self.manager.add_recorder(self.recorder)
+            self.recorder.indicate_manager(self.manager)
             self.recorder.receiver.start()
             while self.isServerRunning:
-                self.manager.check_sync()
+                #self.manager.check_sync()
                 if self.recorder.live == False:
                     print('recorder is dead')
                     break
