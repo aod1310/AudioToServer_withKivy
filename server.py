@@ -4,6 +4,8 @@ import wave
 import time
 import os
 from time import sleep
+import plrsig as plr
+import soundfile
 
 HOST = ''
 PORT = 10000
@@ -15,6 +17,7 @@ class AndroidRecorderManager:
     def __init__(self):
         self.recorders = {}
         self.n_recorders = len(self.recorders)
+        self.cur_folder = None
 
     def add_recorder(self, recorder):
         lock.acquire()
@@ -39,6 +42,7 @@ class AndroidRecorderManager:
                 print('sync!')
             else:
                 self.update_syncs(False)
+                self.save_waves()
                 print('not sync!')
 
     def update_syncs(self, flag):
@@ -54,7 +58,35 @@ class AndroidRecorderManager:
             os.mkdir(folder)
         for recorder in self.recorders.values():
             recorder['recorder'].get_foldername(folder)
+        self.cur_folder = folder
 
+    def save_waves(self):
+        for recorder in self.recorders.values():
+            if len(recorder['recorder'].frames) != 0:
+                recorder['recorder'].save_audio()
+        if len(os.listdir(self.cur_folder)) == 2:
+            self.PLR_Sigmoid_2()
+
+    def PLR_Sigmoid_2(self):
+        signals = plr.load_datas(self.cur_folder)
+        mic1, mic2 = signals[0], signals[1]
+        plrsigF = plr.calc_PLRsigF(mic1, mic2, n_fft=512, cur_weight=0.8, a=3.0, c=1.63)
+        filtered = plr.apply_PLR_sigF(plrsigF, plr.signal_abs_stft(mic1, n_fft=512))
+        result = plr.griffin_filtered_result(filtered)
+        result = plr.signal_normalizer(result)
+
+        filename = 'filter_result.wav'
+        filepath = self.cur_folder + '/' + filename
+        soundfile.write(filepath, result, samplerate=16000, format='WAV', subtype='PCM_16')
+
+    def signal_sync(self, mic1, mic2):
+        if len(mic1) > len(mic2):
+            mic1 = mic1[:len(mic2)]
+        elif len(mic1) < len(mic2):
+            mic2 = mic2[:len(mic1)]
+        else:
+            return mic1, mic2
+        return mic1, mic2
 
 class AndroidRecorder:
     def __init__(self, conn, name):
@@ -89,9 +121,9 @@ class AndroidRecorder:
 
         self.manager.check_sync()
 
-        if len(self.frames) != 0:
-            self.save_audio()
-            self.frames.clear()
+        #if len(self.frames) != 0:
+        #    self.save_audio()
+        #    self.frames.clear()
 
     def store_signal(self, data):
         if self.sync == True:
@@ -105,13 +137,14 @@ class AndroidRecorder:
         #    os.mkdir(folder)
         try:
             #filename = str(self.name) + '_recording' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + '.wav'
-            filename = str(self.name) + '_recording.wav'
+            filename = str(self.name+1) + '_recording.wav'
             wf = wave.open(self.foldername + '/' + filename, 'wb')
             wf.setnchannels(1)
             wf.setframerate(16000)
             wf.setsampwidth(2)
             wf.writeframes(b''.join(self.frames))
             wf.close()
+            self.frames.clear()
         except Exception as e:
             print(e)
             print('there is no data to save')
@@ -119,15 +152,21 @@ class AndroidRecorder:
     def recv_data(self):
         while True:
             data = self.conn.recv(1600)
-
             try:
+                if b'False' in data:
+                    lock.acquire()
+                    self.set_recvflag('False')
+                    lock.release()
+                    continue
                 temp = data.decode().strip()
                 #print(temp)
-                if temp == 'quit':
+                #if temp == 'quit':
+                if 'quit' in temp:
                     self.conn.close()
                     self.live = False
                     break
-                if temp == 'True' or temp == 'False':
+                #if temp == 'True' or temp == 'False':
+                if 'True' in temp or 'False' in temp:
                     lock.acquire()
                     self.set_recvflag(temp)
                     lock.release()
