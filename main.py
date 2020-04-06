@@ -63,7 +63,7 @@ class AndroidClient:
             print('recording fail because of no connection.')
 
     def _record_callback(self, buf):
-        self.clientsocket.send(bytes(buf))
+        self.clientsocket.sendall(bytes(buf))
         #print(buf)
         #self.msg = buf[:10]
 
@@ -184,3 +184,4 @@ if __name__ == '__main__':
     ### Global Android Client to access Kivy object ###
     client = AndroidClient()
     AppLoader().run()
+
