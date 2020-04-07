@@ -56,15 +56,17 @@ def stft_show(stft, sr=16000):
     plt.show()
 
 
-def signal_sync(self, mic1, mic2, corr=True):
+# signal sync : 1) cut the frames differ to another one
+#               2) calculate correlate mic1 and mic2, so get sync!
+def signal_sync(mic1, mic2, corr=True):
     if len(mic1) > len(mic2):
         if corr is True:
-            mic1, mic2 = self.get_correlate(mic1, mic2)
+            mic1, mic2 = get_correlate(mic1, mic2)
         else:
             mic1 = mic1[:len(mic2)]
     elif len(mic1) < len(mic2):
         if corr is True:
-            mic2, mic1 = self.get_correlate(mic2, mic1)
+            mic2, mic1 = get_correlate(mic2, mic1)
         else:
             mic2 = mic2[:len(mic1)]
     else:
@@ -100,7 +102,7 @@ def calc_PSD_welch(signal, n_fft, cur_weight=0.8):
     prev_weight = 1.0-cur_weight
     for n in range(1, len(stft[1])):
         _psd_mic.append( (cur_weight*_psd_mic[n-1]) + (prev_weight*(abs(stft[:,n])**2)) )
-
+    print('PSD_welch done')
     return np.array(_psd_mic)
 
 
@@ -111,11 +113,13 @@ def calc_PLR(mic1, mic2, n_fft, cur_weight=0.8):
     psd_mic1 = calc_PSD_welch(mic1, n_fft, cur_weight)
     psd_mic2 = calc_PSD_welch(mic2, n_fft, cur_weight)
     PLR = psd_mic1 / psd_mic2
+    print('PLR done')
     return PLR
 
 def calc_PLRsigF(mic1, mic2, n_fft, cur_weight=0.8, a=8.0, c=1.5):
     PLR = calc_PLR(mic1, mic2, n_fft, cur_weight)
     PLR_sigF = 1.0 / (1.0+np.exp(-1.0*a*(PLR-c)))
+    print('PLR sigmoid done')
     return PLR_sigF
 
 def apply_PLR_sigF(PLRsigF, stft_primary):
