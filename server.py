@@ -68,8 +68,10 @@ class AndroidRecorderManager:
             self.PLR_Sigmoid_2()
 
     def PLR_Sigmoid_2(self):
+        print('filter using PLR-sigmoid')
         signals = plr.load_datas(self.cur_folder)
         mic1, mic2 = signals[0], signals[1]
+        mic1, mic2 = plr.signal_sync(mic1, mic2, True)
         plrsigF = plr.calc_PLRsigF(mic1, mic2, n_fft=512, cur_weight=0.8, a=3.0, c=1.63)
         filtered = plr.apply_PLR_sigF(plrsigF, plr.signal_abs_stft(mic1, n_fft=512))
         result = plr.griffin_filtered_result(filtered)
@@ -79,14 +81,7 @@ class AndroidRecorderManager:
         filepath = self.cur_folder + '/' + filename
         soundfile.write(filepath, result, samplerate=16000, format='WAV', subtype='PCM_16')
 
-    def signal_sync(self, mic1, mic2):
-        if len(mic1) > len(mic2):
-            mic1 = mic1[:len(mic2)]
-        elif len(mic1) < len(mic2):
-            mic2 = mic2[:len(mic1)]
-        else:
-            return mic1, mic2
-        return mic1, mic2
+
 
 class AndroidRecorder:
     def __init__(self, conn, name):
@@ -137,7 +132,7 @@ class AndroidRecorder:
         #    os.mkdir(folder)
         try:
             #filename = str(self.name) + '_recording' + str(time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))) + '.wav'
-            filename = str(self.name+1) + '_recording.wav'
+            filename = str(self.name) + '_recording.wav'
             wf = wave.open(self.foldername + '/' + filename, 'wb')
             wf.setnchannels(1)
             wf.setframerate(16000)
