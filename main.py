@@ -10,7 +10,7 @@ import socket
 from audiostream import get_input
 import threading
 
-lock = threading.Lock()
+#lock = threading.Lock()
 
 
 class AndroidClient:
@@ -43,28 +43,27 @@ class AndroidClient:
             if self.RECORD:
                 self.clientsocket.send('False'.encode())
                 instance.text = 'stop record'
-                lock.acquire()
+                #lock.acquire()
                 self.RECORD = False
-                lock.release()
+                #lock.release()
                 self.recording.stop()
                 del self.t_poll
             else:
                 self.clientsocket.send('True'.encode())
                 instance.text = 'start record'
-                lock.acquire()
+                #lock.acquire()
                 self.RECORD = True
-                lock.release()
-                self.recording.start()
+                #lock.release()
                 self.t_poll = threading.Thread(target=self._thread_poll, args=())
+                self.recording.start()
                 self.t_poll.start()
         except Exception as e:
             print(e)
             print('recording fail because of no connection.')
 
     def _record_callback(self, buf):
-        self.clientsocket.sendall(bytes(buf))
-        #print(buf)
-        #self.msg = buf[:10]
+        #print(len(buf))
+        self.clientsocket.send(bytes(buf))
 
     # threads can only be started once!! if i wanna use this method, generate another thread
     def _thread_poll(self):
