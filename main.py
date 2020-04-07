@@ -26,7 +26,6 @@ class AndroidClient:
                                    encoding=16,
                                    buffersize=1600)
 
-
     def connectServer(self, ip):
         try :
             self.HOST = ip
@@ -73,11 +72,9 @@ class AndroidClient:
             self.recording.poll()
 
 
-
-
-class Root(BoxLayout):
+class ConnTest(BoxLayout):
     def __init__(self, **kwargs):
-        super(Root, self).__init__(**kwargs)
+        super(ConnTest, self).__init__(**kwargs)
         if platform == 'android':
             DisplayMetrics = autoclass('android.util.DisplayMetrics')
             metrics = DisplayMetrics()
@@ -97,7 +94,7 @@ class ButtonsLayout(BoxLayout):
         self.size_hint = (1, None)
         self.height = 200
 
-        record_start = Button(text='start_record')
+        record_start = Button(text='start record')
         record_start.bind(on_press=client.start_record)
         self.add_widget(record_start)
 
@@ -159,7 +156,9 @@ class IPInputLayout(BoxLayout):
             lblofIPLayout.lbl.text = 'Disconnected'
             self.connect = False
             self.updateButtons()
-
+            client.RECORD = False
+            if client.t_poll:
+                del client.t_poll
         except Exception as e:
             print(e)
             print('no client socket')
@@ -171,11 +170,13 @@ class IPInputLayout(BoxLayout):
 
 class AppLoader(App):
     def build(self):
-        root = Root(orientation='vertical')
+        root = BoxLayout(orientation='vertical')
+        ct = ConnTest(orientation='vertical')
         lblofinputL = lblofIPLayout(orientation='vertical')
         btnsL = ButtonsLayout()
         root.add_widget(lblofinputL)
         root.add_widget(btnsL)
+        root.add_widget(ct)
 
         return root
 
