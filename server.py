@@ -4,13 +4,15 @@ import wave
 import time
 import os
 from time import sleep
+import time
 import plrsig as plr
 import soundfile
+import multiprocessing
 
 HOST = ''
 PORT = 10000
 ADDR = (HOST, PORT)
-lock = threading.Lock()
+#lock = threading.Lock()
 
 
 class AndroidRecorderManager:
@@ -20,34 +22,49 @@ class AndroidRecorderManager:
         self.cur_folder = None
 
     def add_recorder(self, recorder):
-        lock.acquire()
+        #lock.acquire()
         self.recorders[recorder] = {'recorder': recorder, 'name': self.n_recorders, 'connection': recorder.conn}
-        lock.release()
+        #lock.release()
         self.n_recorders = self.n_recorders + 1
         print('connected\n', recorder)
 
     def remove_recorder(self, recorder):
-        lock.acquire()
+        #lock.acquire()
         del self.recorders[recorder]
         self.n_recorders = self.n_recorders - 1
-        lock.release()
+        #lock.release()
         # print(recorder, 'connection out')
 
     def check_sync(self):  # all connected devices pushes Record start Button?
+        start = time.time()
         if self.n_recorders > 0:
-            self.syncs = [recorder['recorder'].RECORD_START for recorder in self.recorders.values()]
+            _recorders = [recorder['recorder'] for recorder in self.recorders.values()]
+            #self.syncs = [recorder['recorder'].RECORD_START for recorder in self.recorders.values()]
+            self.syncs = [recorder.RECORD_START for recorder in _recorders]
             if False not in self.syncs:
-                self.update_syncs(True)
+                #self.update_syncs(True)
+                with multiprocessing.Pool() as pool:
+                    pool.map(self.synctest, _recorders)
+                    print('pool')
                 self.set_foldername()
                 print('sync!')
             else:
                 self.update_syncs(False)
-                self.save_waves()
                 print('not sync!')
+                self.save_waves()
+        print('process time : ', time.time() - start)
+        time.sleep(0.2)
+
+    def synctest(self, recorder):
+        print('recorder = ', recorder, 'changed')
+        recorder.sync=True
 
     def update_syncs(self, flag):
-        for recorder in self.recorders.values():
+        #start = time.time()
+        updaters = []
+        for recorder in self.recorders.values():  ################# 여기때문에 딜레이문제 발생하는듯함. ####################
             recorder['recorder'].update_sync(flag)
+        #print('process time : ', time.time() - start)
 
     def set_foldername(self):
         if not os.path.exists('./waves'):
@@ -64,23 +81,22 @@ class AndroidRecorderManager:
         for recorder in self.recorders.values():
             if len(recorder['recorder'].frames) != 0:
                 recorder['recorder'].save_audio()
-        if len(os.listdir(self.cur_folder)) == 2:
-            self.PLR_Sigmoid_2()
+        #if len(os.listdir(self.cur_folder)) == 2:
+        #    self.PLR_Sigmoid_2()
 
     def PLR_Sigmoid_2(self):
         print('filter using PLR-sigmoid')
         signals = plr.load_datas(self.cur_folder)
         mic1, mic2 = signals[0], signals[1]
-        mic1, mic2 = plr.signal_sync(mic1, mic2, True)
+        mic1, mic2 = plr.signal_sync(mic1, mic2, corr=False)
         plrsigF = plr.calc_PLRsigF(mic1, mic2, n_fft=512, cur_weight=0.8, a=3.0, c=1.63)
         filtered = plr.apply_PLR_sigF(plrsigF, plr.signal_abs_stft(mic1, n_fft=512))
         result = plr.griffin_filtered_result(filtered)
-        result = plr.signal_normalizer(result)
+        #result = plr.signal_normalizer(result)
 
         filename = 'filter_result.wav'
         filepath = self.cur_folder + '/' + filename
         soundfile.write(filepath, result, samplerate=16000, format='WAV', subtype='PCM_16')
-
 
 
 class AndroidRecorder:
@@ -116,14 +132,10 @@ class AndroidRecorder:
 
         self.manager.check_sync()
 
-        #if len(self.frames) != 0:
-        #    self.save_audio()
-        #    self.frames.clear()
-
     def store_signal(self, data):
         if self.sync == True:
             self.frames.append(data)
-        # print(data)
+        #print(self.name, data)
 
     # Sync가 True될 때의 시간을 체크해서 폴더를 생성해야됨.
     def save_audio(self):
@@ -140,6 +152,7 @@ class AndroidRecorder:
             wf.writeframes(b''.join(self.frames))
             wf.close()
             self.frames.clear()
+            print('save complete')
         except Exception as e:
             print(e)
             print('there is no data to save')
@@ -147,36 +160,35 @@ class AndroidRecorder:
     def recv_data(self):
         while True:
             data = self.conn.recv(1600)
+            #print(len(data))
             try:
                 if b'False' in data:
-                    lock.acquire()
                     self.set_recvflag('False')
-                    lock.release()
                     continue
                 temp = data.decode().strip()
                 #print(temp)
-                #if temp == 'quit':
                 if 'quit' in temp:
                     self.conn.close()
                     self.live = False
                     break
-                #if temp == 'True' or temp == 'False':
                 if 'True' in temp or 'False' in temp:
-                    lock.acquire()
                     self.set_recvflag(temp)
-                    lock.release()
                     continue
             except Exception as e:
                 #print(e)
                 pass
-            if self.RECORD_START:
+            #if self.RECORD_START:
+            if self.sync is False:
+                del data
+                continue
+            elif self.sync is True:
                 self.store_signal(data)
             else:
                 pass
 
-
     def update_sync(self, flag):
         self.sync = flag
+        print(time.time())
 
     def get_RECORD_START(self):
         return self.RECORD_START
@@ -188,7 +200,7 @@ class AndroidTCPHandler(socketserver.BaseRequestHandler):
 
     def handle(self):  # it is called when clients connect this server.
         try:
-            self.request.send('connect successfully'.encode())
+            self.request.send(('%d recorder connect successfully' % self.manager.n_recorders).encode())
             self.recorder = AndroidRecorder(self.request, self.manager.n_recorders)
             self.manager.add_recorder(self.recorder)
             self.recorder.indicate_manager(self.manager)
@@ -220,7 +232,7 @@ def ServerStart():
     except:
         print('close server')
         AndroidTCPHandler.isServerRunning = False
-        sleep(1)
+        #sleep(1)
         server.shutdown()
         server.server_close()
 
