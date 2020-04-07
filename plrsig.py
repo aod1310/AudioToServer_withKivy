@@ -9,22 +9,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile
 import librosa.display as display
-import IPython.display as ipd
 import os
-from scipy.signal import welch
-from pydub import effects
+from scipy.signal import welch, correlate
 
 
 # In[26]:
 
 
-data_folder = './datasets/'
-duration = 10
 def load_datas(folder):
     signals = []
     for data in os.listdir(folder):
-        if data.endswith('noise.wav'):
-            y, sr = librosa.load(data, duration=10, sr=16000, mono=False)
+        if data.endswith('.wav'):
+            y, sr = librosa.load(folder+'/'+data, sr=16000, mono=True)
             signals.append(y)
     return signals
 
@@ -60,6 +56,30 @@ def stft_show(stft, sr=16000):
     plt.show()
 
 
+def signal_sync(self, mic1, mic2, corr=True):
+    if len(mic1) > len(mic2):
+        if corr is True:
+            mic1, mic2 = self.get_correlate(mic1, mic2)
+        else:
+            mic1 = mic1[:len(mic2)]
+    elif len(mic1) < len(mic2):
+        if corr is True:
+            mic2, mic1 = self.get_correlate(mic2, mic1)
+        else:
+            mic2 = mic2[:len(mic1)]
+    else:
+        return mic1, mic2
+    return mic1, mic2
+
+def get_correlate(mic1, mic2):
+    corr = correlate(mic1, mic2)
+    a = np.argmax(corr)
+    b = len(mic2)
+    diff = np.abs(b-a)
+    mic1 = mic1[diff:len(mic2)+diff]
+    return mic1, mic2
+
+
 # In[5]:
 
 
@@ -73,6 +93,7 @@ def calc_PSD(signal, n_fft, cur_weight=0.8):
 
 
 def calc_PSD_welch(signal, n_fft, cur_weight=0.8):
+    #print(len(signal))
     stft = signal_abs_stft(signal, n_fft)
     f, _psd = welch(stft[0, :], nfft=n_fft, fs=16000)
     _psd_mic = [_psd]
@@ -173,16 +194,6 @@ def main(name):
     save_results(result, filter_result, name, a, c, duration, n_fft, samplerate=16000)
 
 
-# In[28]:
 
-def start_plrsig(filepath):
-    for name in os.listdir('./datasets/'):
-        if name.endswith('noise.wav'):
-            print('....process : {0}....'.format(name[:-4]))
-            main(name[:-4])
 
-def start_plrsig_1file(filepath):
-# 파일 1개만실행        
-    name = '20200304_captain_noise'
-    main(name)
 
