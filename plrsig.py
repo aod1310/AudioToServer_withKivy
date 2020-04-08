@@ -63,12 +63,14 @@ def signal_sync(mic1, mic2, corr=True):
         if corr is True:
             mic1, mic2 = get_correlate(mic1, mic2)
         else:
-            mic1 = mic1[:len(mic2)]
+            diff = len(mic1) -  len(mic2)
+            mic1 = mic1[diff:]
     elif len(mic1) < len(mic2):
         if corr is True:
             mic2, mic1 = get_correlate(mic2, mic1)
         else:
-            mic2 = mic2[:len(mic1)]
+            diff = len(mic2) - len(mic1)
+            mic2 = mic2[diff:]
     else:
         return mic1, mic2
     return mic1, mic2
