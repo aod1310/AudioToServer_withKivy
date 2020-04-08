@@ -20,12 +20,15 @@ class AndroidRecorderManager:
         self.recorders = {}
         self.n_recorders = len(self.recorders)
         self.cur_folder = None
+        self.sync = False
+        self.recorder_syncs = []
 
     def add_recorder(self, recorder):
         #lock.acquire()
         self.recorders[recorder] = {'recorder': recorder, 'name': self.n_recorders, 'connection': recorder.conn}
         #lock.release()
         self.n_recorders = self.n_recorders + 1
+        #self.recorder_syncs.append(recorder.RECORD_START)
         print('connected\n', recorder)
 
     def remove_recorder(self, recorder):
@@ -35,6 +38,19 @@ class AndroidRecorderManager:
         #lock.release()
         # print(recorder, 'connection out')
 
+    def check_sync(self):
+        if self.n_recorders > 0:
+            recorder_syncs = [recorder['recorder'].RECORD_START for recorder in self.recorders.values()]
+            if False not in recorder_syncs:
+                self.sync = True
+                self.set_foldername()
+                print('sync!')
+            else:
+                self.sync = False
+                self.save_waves()
+                print('not sync!')
+            del recorder_syncs
+    '''
     def check_sync(self):  # all connected devices pushes Record start Button?
         start = time.time()
         if self.n_recorders > 0:
@@ -54,6 +70,7 @@ class AndroidRecorderManager:
                 self.save_waves()
         print('process time : ', time.time() - start)
         time.sleep(0.2)
+    
 
     def synctest(self, recorder):
         print('recorder = ', recorder, 'changed')
@@ -65,6 +82,7 @@ class AndroidRecorderManager:
         for recorder in self.recorders.values():  ################# 여기때문에 딜레이문제 발생하는듯함. ####################
             recorder['recorder'].update_sync(flag)
         #print('process time : ', time.time() - start)
+    '''
 
     def set_foldername(self):
         if not os.path.exists('./waves'):
@@ -81,8 +99,8 @@ class AndroidRecorderManager:
         for recorder in self.recorders.values():
             if len(recorder['recorder'].frames) != 0:
                 recorder['recorder'].save_audio()
-        #if len(os.listdir(self.cur_folder)) == 2:
-        #    self.PLR_Sigmoid_2()
+        if len(os.listdir(self.cur_folder)) == 2:
+            self.PLR_Sigmoid_2()
 
     def PLR_Sigmoid_2(self):
         print('filter using PLR-sigmoid')
@@ -103,7 +121,7 @@ class AndroidRecorder:
     def __init__(self, conn, name):
         self.live = True
         self.RECORD_START = False
-        self.sync = False
+        #self.sync = False
         self.frames = []
         self.conn = conn
         self.name = name
@@ -133,7 +151,7 @@ class AndroidRecorder:
         self.manager.check_sync()
 
     def store_signal(self, data):
-        if self.sync == True:
+        if self.manager.sync:
             self.frames.append(data)
         #print(self.name, data)
 
@@ -173,22 +191,22 @@ class AndroidRecorder:
                     break
                 if 'True' in temp or 'False' in temp:
                     self.set_recvflag(temp)
-                    continue
+                    #continue
             except Exception as e:
-                #print(e)
+                #print(self.name, e)
                 pass
             #if self.RECORD_START:
-            if self.sync is False:
+            if self.manager.sync is False:
                 del data
                 continue
-            elif self.sync is True:
+            elif self.manager.sync is True:
                 self.store_signal(data)
             else:
                 pass
 
-    def update_sync(self, flag):
-        self.sync = flag
-        print(time.time())
+    #def update_sync(self, flag):
+    #    self.sync = flag
+    #    print(time.time())
 
     def get_RECORD_START(self):
         return self.RECORD_START
