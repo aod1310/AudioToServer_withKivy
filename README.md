@@ -29,3 +29,16 @@ and rebuild.
 
 if you see the logcat with usb debugging, enter below on shell
 'buildozer android debug deploy run logcat | grep python.
+
+
+
+To Use BlueTooth Headset.
+Revise 'MainActivity.java' file.
+
+inside of the file, 'onCreate()' method is existed.
+
+declare 'AudioManager' and call startBluetoothSco()
+
+
+
+
