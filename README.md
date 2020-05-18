@@ -1,3 +1,21 @@
+# kivy install
+conda install kivy -c conda-forge
+
+# buildozer install
+pip install buildozer
+
+# auduiostream install
+git clone https://github.com/kivy/audiostream.git
+cd ./audiostream
+python setup.py install
+- pre-requires -
+apt-get install gcc, g++, libsdl1.2-dev libsdl-image1.2-dev libsdl-mixer1.2-dev libsdl-net1.2-dev libsdl-ttf2.0-dev <-- SDL library
+
+# pyjnius install
+pip install pyjnius
+
+
+
 # AudioToServer_withKivy
 
 OS : LINUX(Ubuntu 18.04LTS)
